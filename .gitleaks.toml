@@ -1,0 +1,73 @@
+# gitleaks.toml
+
+# Specify the version of the configuration
+version = 1
+
+# Define rules to detect secrets
+
+[[rules]]
+  description = "AWS Access Key"
+  regex = '''(?i)(aws|access|secret)[\s_\-]?key\s*[:=]{1}[\s'"]*?([A-Z0-9]{20})'''
+  tags = ["aws", "access_key"]
+
+[[rules]]
+  description = "AWS Secret Key"
+  regex = '''(?i)(aws|secret)[\s_\-]?key\s*[:=]{1}[\s'"]*?([A-Za-z0-9/+=]{40})'''
+  tags = ["aws", "secret_key"]
+
+[[rules]]
+  description = "Slack Token"
+  regex = '''xox[baprs]\-[0-9]{12}\-[0-9]{12}\-[0-9]{12}\-[0-9a-zA-Z]{20}'''
+  tags = ["slack", "token"]
+
+[[rules]]
+  description = "GitHub Personal Access Token"
+  regex = '''(?i)(gh|github)[\s_\-]?token\s*[:=]{1}[\s'"]*?([a-zA-Z0-9]{40})'''
+  tags = ["github", "access_token"]
+
+[[rules]]
+  description = "Stripe API Key"
+  regex = '''(?i)(sk_live|sk_test|pk_live|pk_test)[\s_\-]?[:=]{1}[\s'"]*?([sk_test|sk_live|pk_test|pk_live][0-9a-zA-Z]{24})'''
+  tags = ["stripe", "api_key"]
+
+[[rules]]
+  description = "Twilio Auth Token"
+  regex = '''(?i)(twilio|auth)[\s_\-]?token\s*[:=]{1}[\s'"]*?([0-9a-f]{32})'''
+  tags = ["twilio", "auth_token"]
+
+[[rules]]
+  description = "Google API Key"
+  regex = '''(?i)(AIza[0-9A-Za-z\-_]{35})'''
+  tags = ["google", "api_key"]
+
+[[rules]]
+  description = "Firebase API Key"
+  regex = '''(?i)(firebase|api)[\s_\-]?key\s*[:=]{1}[\s'"]*?([A-Za-z0-9]{39})'''
+  tags = ["firebase", "api_key"]
+
+[[rules]]
+  description = "MongoDB Connection String"
+  regex = '''mongodb[s]?://[^\s]+?'''
+  tags = ["mongodb", "connection_string"]
+
+[[rules]]
+  description = "Docker Hub Access Token"
+  regex = '''(?i)(docker|hub|token)[\s_\-]?[:=]{1}[\s'"]*?([a-z0-9]{64})'''
+  tags = ["docker", "access_token"]
+
+[[rules]]
+  description = "Terraform State Backend Token"
+  regex = '''(?i)(token)[\s_\-]?[:=]{1}[\s'"]*?([A-Za-z0-9]{40})'''
+  tags = ["terraform", "state_backend", "token"]
+
+[[rules]]
+  description = "Heroku API Key"
+  regex = '''(?i)(heroku|api)[\s_\-]?key\s*[:=]{1}[\s'"]*?([0-9a-f]{32})'''
+  tags = ["heroku", "api_key"]
+
+[[rules]]
+  description = "LinkedIn API Key"
+  regex = '''(?i)(linkedin|api)[\s_\-]?key\s*[:=]{1}[\s'"]*?([A-Za-z0-9]{24})'''
+  tags = ["linkedin", "api_key"]
+
+# You can add more rules as needed
