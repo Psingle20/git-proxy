@@ -1,68 +1,47 @@
-const { exec } = require('../src/proxy/processors/push-action/SecretsDetection'); // Adjust the path to your exec file
-const { Step } = require('../src/proxy/actions/Step'); // Import Step if needed
-const sinon = require('sinon');
 
-describe('exec function', () => {
+const { exec } = require('../src/proxy/processors/push-action/SecretsDetection.js'); // Adjust the path
+const sinon = require('sinon');
+const { Action } = require('../src/proxy/actions/Action.js');
+const { Step } = require('../src/proxy/actions/Step.js');
+
+describe('Sensitive Data Detection', () => {
     let logStub;
 
     beforeEach(() => {
-        // Create a stub for console.log
-        logStub = sinon.stub(console, 'log');
+        logStub = sinon.stub(console, 'log'); // Stub console.log before each test
     });
 
     afterEach(() => {
-        // Restore the original console.log
-        logStub.restore();
+        logStub.restore(); // Restore console.log after each test
     });
 
-    it('should log changed file paths when diffStep has content', async () => {
-        const action = {
-            steps: [
-                new Step('diff', false, null, false, null, 'file1.js\nfile2.js\nfile3.js')
-            ]
-        };
-        const req = {};
-        await exec(req, action);
+    const createDiffContent = (filePaths) => {
+        // Format file paths in diff format
+        return filePaths.map(filePath => `diff --git a/${filePath} b/${filePath}`).join('\n');
+    };
 
-        // Print what is being logged for debugging
-        console.log('Logged output for changed file paths:', logStub.getCalls().map(call => call.args));
+    
 
-        // Check the logged output
-        sinon.assert.calledWith(logStub.getCall(0), 'Diff content:', 'file1.js\nfile2.js\nfile3.js');
-        sinon.assert.calledWith(logStub.getCall(1), 'Changed file paths:');
-        sinon.assert.calledWith(logStub.getCall(2), 'file1.js');
-        sinon.assert.calledWith(logStub.getCall(3), 'file2.js');
-        sinon.assert.calledWith(logStub.getCall(4), 'file3.js');
-    });
+   
+    it('should detect sensitive data and log the appropriate message', async () => {
+       
+      
 
-    it('should log a message when no file paths are provided in the diff step', async () => {
-        const action = {
-            steps: [
-                new Step('diff', false, null, false, null, '') // Empty content
-            ]
-        };
-        const req = {};
-        await exec(req, action);
+        const action = new Action('action_id', 'push', 'create', Date.now(), 'owner/repo');
+        const step = new Step('diff');
 
-        // Print what is being logged for debugging
-        console.log('Logged output for no file paths:', logStub.getCalls().map(call => call.args));
+        // Create diff content simulating sensitive data in the dummy file
+        step.setContent(createDiffContent(['test/test_data/SecretDetectTestData/sensitive_data.js' ]));
+        action.addStep(step);
 
-        // Check the logged output
-        sinon.assert.calledWith(logStub.getCall(0), 'Diff content:', ''); // Ensure it logs the empty content
-        sinon.assert.calledWith(logStub.getCall(1), 'No file paths provided in the diff step.'); // Check for no paths message
-    });
+        // Call the real exec function (without mocking) here
+        await exec(null, action); // Run your real exec function
 
-    it('should log a message when no diff content is available', async () => {
-        const action = {
-            steps: [] // No steps
-        };
-        const req = {};
-        await exec(req, action);
+        // Check if the correct log was triggered based on the actual execution
+        sinon.assert.calledWith(logStub, sinon.match(/Sensitive secrets detected! Push blocked/)); // Ensure the detection log
+        sinon.assert.calledWith(logStub, sinon.match(/File: test\/test_data\/sensitive_data.js/)); // Ensure the file with the secret is logged
+        sinon.assert.calledWith(logStub, sinon.match(/Secret: AKIA[A-Za-z0-9]{16}/)); // Ensure the secret pattern is logged
 
-        // Print what is being logged for debugging
-        console.log('Logged output for no diff content:', logStub.getCalls().map(call => call.args));
-
-        // Check the logged output
-        sinon.assert.calledWith(logStub.getCall(0), 'No diff content available.'); // Ensure it logs the correct message
+      
     });
 });

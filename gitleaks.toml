@@ -1,0 +1,7 @@
+version = 1
+
+[[rules]]
+id = "aws-access-key"
+description = "AWS Access Key"
+regex = '''AKIA[A-Z0-9]{16}'''
+tags = ["aws", "access_key"]
