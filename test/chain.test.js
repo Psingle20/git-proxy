@@ -63,7 +63,7 @@ describe('proxy chain', function () {
     // Re-require the chain module after stubbing processors
     chain = require('../src/proxy/chain');
 
-    chain.chainPluginLoader = new PluginLoader([])
+    chain.chainPluginLoader = new PluginLoader([]);
   });
 
   afterEach(() => {
@@ -104,17 +104,23 @@ describe('proxy chain', function () {
     mockPushProcessors.parsePush.resolves(continuingAction);
     mockPushProcessors.checkRepoInAuthorisedList.resolves(continuingAction);
     mockPushProcessors.checkCommitMessages.resolves(continuingAction);
+    mockPushProcessors.checkforSecrets.resolves(continuingAction);
     mockPushProcessors.checkAuthorEmails.resolves(continuingAction);
     mockPushProcessors.checkUserPushPermission.resolves(continuingAction);
 
     // this stops the chain from further execution
-    mockPushProcessors.checkIfWaitingAuth.resolves({ type: 'push', continue: () => false, allowPush: false });
+    mockPushProcessors.checkIfWaitingAuth.resolves({
+      type: 'push',
+      continue: () => false,
+      allowPush: false,
+    });
     const result = await chain.executeChain(req);
 
     expect(mockPreProcessors.parseAction.called).to.be.true;
     expect(mockPushProcessors.parsePush.called).to.be.true;
     expect(mockPushProcessors.checkRepoInAuthorisedList.called).to.be.true;
     expect(mockPushProcessors.checkCommitMessages.called).to.be.true;
+    expect(mockPushProcessors.checkforSecrets.called).to.be.true;
     expect(mockPushProcessors.checkAuthorEmails.called).to.be.true;
     expect(mockPushProcessors.checkUserPushPermission.called).to.be.true;
     expect(mockPushProcessors.checkIfWaitingAuth.called).to.be.true;
@@ -135,8 +141,13 @@ describe('proxy chain', function () {
     mockPushProcessors.checkCommitMessages.resolves(continuingAction);
     mockPushProcessors.checkAuthorEmails.resolves(continuingAction);
     mockPushProcessors.checkUserPushPermission.resolves(continuingAction);
+    mockPushProcessors.checkforSecrets.resolves(continuingAction);
     // this stops the chain from further execution
-    mockPushProcessors.checkIfWaitingAuth.resolves({ type: 'push', continue: () => true, allowPush: true });
+    mockPushProcessors.checkIfWaitingAuth.resolves({
+      type: 'push',
+      continue: () => true,
+      allowPush: true,
+    });
     const result = await chain.executeChain(req);
 
     expect(mockPreProcessors.parseAction.called).to.be.true;
@@ -148,6 +159,7 @@ describe('proxy chain', function () {
     expect(mockPushProcessors.checkIfWaitingAuth.called).to.be.true;
     expect(mockPushProcessors.pullRemote.called).to.be.false;
     expect(mockPushProcessors.audit.called).to.be.true;
+    expect(mockPushProcessors.checkforSecrets.called).to.be.true;
 
     expect(result.type).to.equal('push');
     expect(result.allowPush).to.be.true;
@@ -170,6 +182,7 @@ describe('proxy chain', function () {
     mockPushProcessors.clearBareClone.resolves(continuingAction);
     mockPushProcessors.scanDiff.resolves(continuingAction);
     mockPushProcessors.blockForAuth.resolves(continuingAction);
+    mockPushProcessors.checkforSecrets.resolves(continuingAction);
 
     const result = await chain.executeChain(req);
 
@@ -187,6 +200,7 @@ describe('proxy chain', function () {
     expect(mockPushProcessors.scanDiff.called).to.be.true;
     expect(mockPushProcessors.blockForAuth.called).to.be.true;
     expect(mockPushProcessors.audit.called).to.be.true;
+    expect(mockPushProcessors.checkforSecrets.called).to.be.true;
 
     expect(result.type).to.equal('push');
     expect(result.allowPush).to.be.false;
@@ -232,5 +246,5 @@ describe('proxy chain', function () {
     expect(mockPushProcessors.checkRepoInAuthorisedList.called).to.be.false;
     expect(mockPushProcessors.parsePush.called).to.be.false;
     expect(result).to.deep.equal(action);
-  })
+  });
 });
