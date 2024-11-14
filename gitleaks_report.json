@@ -1,0 +1,25 @@
+[
+ {
+  "Description": "AWS Access Key",
+  "StartLine": 2,
+  "EndLine": 2,
+  "StartColumn": 18,
+  "EndColumn": 37,
+  "Match": "AKIAIOSFODNN8EXAMPLE",
+  "Secret": "AKIAIOSFODNN8EXAMPLE",
+  "File": "test\\test_data\\SecretDetectTestData\\sensitive_data.js",
+  "SymlinkFile": "",
+  "Commit": "",
+  "Entropy": 3.6841838,
+  "Author": "",
+  "Email": "",
+  "Date": "",
+  "Message": "",
+  "Tags": [
+   "aws",
+   "access_key"
+  ],
+  "RuleID": "aws-access-key",
+  "Fingerprint": "test\\test_data\\SecretDetectTestData\\sensitive_data.js:aws-access-key:2"
+ }
+]

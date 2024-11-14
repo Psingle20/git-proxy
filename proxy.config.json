@@ -79,6 +79,9 @@
         "patterns": [],
         "providers": {}
       }
+    },
+    "SecretDetect": {
+      "enabled": false
     }
   },
   "attestationConfig": {

@@ -1,85 +1,80 @@
-const { Step } = require('../../actions');
-const { exec: cexec } = require('child_process');
+const { spawn } = require('child_process');
 const path = require('path');
+const config = require('../../../config');
+const commitConfig = config.getCommitConfig();
 
-// Function to extract relevant file paths from Git diff content
-function extractRelevantFilePaths(diffContent) {
-  const relevantFilePaths = [];
+
+// go to proxyconfig.json and enable the feature
+
+// gitleaks.report.json will show the secrets found and in which file they are found
+// Function to extract relevant file paths and their parent directories
+function extractRelevantDirectories(diffContent) {
+  const relevantDirectories = [];
   const lines = diffContent.split('\n');
-
-  // Define relevant file extensions for secret/malicious code detection
-  const relevantExtensions = ['.env', '.json', '.yaml', '.yml', '.js', '.ts', '.txt'];
+  // .env is mostly in the gitignore but it can be added here as well
+  const relevantExtensions = [ '.json', '.yaml', '.yml', '.js', '.ts', '.txt'];
 
   lines.forEach((line) => {
-    // Match lines that start with "diff --git a/... b/..."
     const match = line.match(/^diff --git a\/(.+?) b\/(.+?)$/);
     if (match) {
-      const filePath = match[1]; // Capture file path after 'a/' prefix
-      const fileExtension = filePath.split('.').pop(); // Get file extension
+      const filePath = match[1];
+      const fileExtension = filePath.split('.').pop();
 
-      // Check if the file has a relevant extension
       if (relevantExtensions.includes(`.${fileExtension}`)) {
-        relevantFilePaths.push(filePath); // Add to relevant file paths
+        // Extract parent directory from file path
+        const dirPath = path.dirname(filePath);
+        if (!relevantDirectories.includes(dirPath)) {
+          relevantDirectories.push(dirPath);
+        }
       }
     }
   });
 
-  return relevantFilePaths;
+  return relevantDirectories;
 }
 
+// Function to run gitleaks with directory paths
 function runGitleaks(filePaths) {
   return new Promise((resolve, reject) => {
-    // Create the command string with multiple --source arguments
-    // const filesToCheck = filePaths.map((filePath) => `--source="${filePath}"`).join(' '); // Ensure each file path gets its own --source
     const filesToCheck = filePaths
-      .map((filePath) => {
-        // Convert each file path to an absolute path and normalize slashes
-        const formattedFilePath = `--source="${path.resolve(filePath).replace(/\\/g, '/')}"`;
-        return formattedFilePath;
-      })
+      .map((filePath) => `"${path.resolve(filePath).replace(/\\/g, '/')}"`) // Ensure files are correctly quoted
       .join(' ');
 
-    console.log('Files to check:', filesToCheck);
+    const configPath = path.resolve(__dirname, '../../../../gitleaks.toml').replace(/\\/g, '/');
+    const reportPath = path.resolve(__dirname, '../../../../gitleaks_report.json').replace(/\\/g, '/');
 
-    // Use an absolute path for the gitleaks configuration file
-    const configPath = path.resolve(__dirname, '../../../../gitleaks.toml'); // Adjust path as needed
+    // Log the full command for debugging
+    const command = `gitleaks dir ${filesToCheck} --config="${configPath}" --report-format json --log-level error --report-path="${reportPath}"`;
+    console.log(`Executing Gitleaks Command: ${command}`);  // Log the full command for debugging
 
-    // Construct the command without extra escape characters
-    const command = `gitleaks detect ${filesToCheck} --no-git --config="${configPath}"`;
+    const gitleaksProcess = spawn('gitleaks', ['dir', ...filePaths, '--config', configPath, '--report-format', 'json', '--log-level', 'error', '--report-path', reportPath]);
 
-    console.log(`Executing Gitleaks Command: ${command}`); // Log the command being executed
+    gitleaksProcess.stdout.on('data', (data) => {
+      console.log(`stdout: ${data}`);
+    });
 
-    // Execute the command using Node.js exec
-    cexec(command, (error, stdout, stderr) => {
-        console.log('Gitleaks command executed');
-        console.log({ error, stdout, stderr });
-      
-        if (error) {
-          console.error(`Error executing gitleaks: ${error.message}`);
-          reject(new Error(`Error executing gitleaks: ${error.message}`)); // Reject with an Error object
-        } else if (stderr) {
-          console.error(`stderr: ${stderr}`);
-          reject(new Error(`stderr: ${stderr}`)); // Reject with an Error object
-        } else {
-          console.log('hi');
-          console.log(`stdout: ${stdout}`);
-          resolve(stdout); // Resolve with the output from gitleaks
-        }
-      });
-      
+    gitleaksProcess.stderr.on('data', (data) => {
+      console.error(`stderr: ${data}`);
+    });
+
+    gitleaksProcess.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(`Gitleaks failed with exit code ${code}`));
+      } else {
+        resolve('Gitleaks executed successfully');
+      }
+    });
   });
 }
 
-// Function to check if any sensitive secrets were found
+
+// Function to check for sensitive secrets in the Gitleaks output
 function checkForSensitiveSecrets(output) {
   try {
-    const findings = JSON.parse(output); // Parse the JSON output from Gitleaks
+    const findings = JSON.parse(output);
 
-    // Check if any secrets are found
     if (findings.length > 0) {
-      // If any secrets were found, return true (indicating sensitive data was detected)
       findings.forEach((finding) => {
-        // Log the details of each detected secret
         console.log(`Secret found in file: ${finding.file}`);
         console.log(`  Rule: ${finding.rule_id}`);
         console.log(`  Secret: ${finding.secret}`);
@@ -88,10 +83,10 @@ function checkForSensitiveSecrets(output) {
       });
       return true;
     }
-    return false; // No sensitive data found
+    return false;
   } catch (error) {
     console.error('Error parsing Gitleaks output:', error);
-    return false; // Return false if there's an error in parsing
+    return false;
   }
 }
 
@@ -99,22 +94,25 @@ function checkForSensitiveSecrets(output) {
 const exec = async (req, action) => {
   const diffStep = action.steps.find((s) => s.stepName === 'diff');
   const step = new Step('secretsDetection');
+  const commitinfo = commitConfig.SecretDetect;
+  if(!commitinfo.enabled){
+    action.addStep(step);
+    return action;
+  }
+
 
   if (diffStep && diffStep.content) {
     console.log('Diff content:', diffStep.content);
 
-    // Use the function to extract file paths
-    const filePaths = extractRelevantFilePaths(diffStep.content);
+    const dirPaths = extractRelevantDirectories(diffStep.content);
 
-    if (filePaths.length > 0) {
-      console.log('Changed file paths:', filePaths);
+    if (dirPaths.length > 0) {
+      console.log('Changed directories:', dirPaths);
 
-      // Run Gitleaks on the file paths
       try {
-        const result = await runGitleaks(filePaths);
-        console.log('Gitleaks output:', result);
+        const result = await runGitleaks(dirPaths);
+        console.log("Gitleaks output:", result);
 
-        // Check if sensitive secrets were detected
         const hasSensitiveSecrets = checkForSensitiveSecrets(result);
 
         if (hasSensitiveSecrets) {
@@ -125,6 +123,7 @@ const exec = async (req, action) => {
           );
           step.blocked = true;
           step.blockedMessage = 'Sensitive secrets detected in the diff.';
+          console.log('Sensitive secrets detected! Push blocked.');
           action.addStep(step);
         } else {
           console.log('No sensitive secrets detected.');
@@ -133,22 +132,32 @@ const exec = async (req, action) => {
         console.error('Error during Gitleaks execution:', err);
       }
     } else {
-      console.log('No relevant file paths found in the diff.');
+      console.log('No relevant directories found in the diff.');
     }
   } else {
     console.log('No diff content available.');
   }
 
-  return action; // Returning action for testing purposes
+  return action;
 };
 
-exec.displayName = 'SecretDetection.exec'; // For debugging or tracking
+exec.displayName = 'SecretDetection.exec';
 exports.exec = exec;
-// process.chdir('C:/Users/ingle/Desktop/Citi Hackthon/git-proxy'); // Adjust path as needed
-// console.log('Current working directory:', process.cwd());
 
-// let diffContent =
-//   'diff --git a/test/test_data/SecretDetectTestData/sensitive_data.js b/test/test_data/SecretDetectTestData/sensitive_data.js\\ndiff --git a/test/test_data/SecretDetectTestData/another_file.txt b/test/test_data/SecretDetectTestData/another_file.txt';
-// let arr = extractRelevantFilePaths(diffContent);
-// console.log(arr);
-// runGitleaks(arr);
+// for testing purpose
+// const diffContent ="diff --git a/test/test_data/SecretDetectTestData/sensitive_data.js b/test/test_data/SecretDetectTestData/sensitive_data.js"
+
+// const reldirs = extractRelevantDirectories(diffContent);
+// console.log('Changed file paths:', reldirs);
+
+// runGitleaks(reldirs).then((result) => {
+//   console.log("Gitleaks output:", result);
+//   const hasSensitiveSecrets = checkForSensitiveSecrets(result);
+//   if (hasSensitiveSecrets) {
+//     console.log('Sensitive secrets detected! Push blocked.');
+//   } else {  
+//     console.log('No sensitive secrets detected.');
+//   }     
+// }).catch((error) => {
+//   console.error('Error during Gitleaks execution:', error);
+// });
